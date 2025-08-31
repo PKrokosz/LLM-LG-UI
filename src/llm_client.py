@@ -1,11 +1,11 @@
 """LLM client and question answering utilities."""
-
-import time
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import requests
 
 from .config import LLAMA_BASE_URL, LLAMA_MODEL, MAX_TOKENS, STOP, TEMPERATURE
+from .intent_parser import parse_intent
+from .prompt_enhancer import enhance_prompt
 from .retrieval import BM25Index
 
 SYSTEM_PROMPT = (
@@ -43,33 +43,21 @@ def format_context(chunks: List[Dict]) -> str:
     return "\n\n".join(lines)
 
 
-def answer_question(state: Dict, question: str, top_k: int, seed: int):
-    """Handle question answering using BM25 retrieval and LLM."""
-    if not state or "index" not in state:
-        return state, "Najpierw wczytaj podręcznik."
+def _log(prompt: str, answer: str) -> None:
+    with open("log.txt", "a", encoding="utf-8") as f:
+        f.write("PROMPT:\n" + prompt + "\n\nANSWER:\n" + answer + "\n" + "-" * 40 + "\n")
 
+
+def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 42) -> Tuple[str, str, str]:
+    """Handle question answering using BM25 retrieval and LLM."""
     q_clean = (question or "").strip()
     if len(q_clean) < 3:
-        return state, "Doprecyzuj pytanie (np. 'Jak się walczy?')."
+        return "", "Doprecyzuj pytanie (np. 'Jak się walczy?').", ""
 
-    idx: BM25Index = state["index"]
+    intent = parse_intent(q_clean)
     hits = idx.search(q_clean, k=top_k)
     ctx = format_context(hits)
-
-    answer_format = (
-        "FORMAT ODPOWIEDZI (stosuj dokładnie):\n"
-        "Odpowiedź: <2–4 krótkie zdania, tylko fakty z kontekstu; jeśli brak – 'Nie ma tego w podręczniku.'>\n"
-        "Cytaty: \"<cytat1>\" ; \"<cytat2>\" (każdy ≤ 20 słów, dosłownie z kontekstu; jeśli masz tylko jeden – podaj jeden)\n"
-        "Źródła: [Strona X — Sekcja: Y]; [Strona …]"
-    )
-
-    user_prompt = (
-        f"Pytanie użytkownika: {q_clean}\n\n"
-        f"Najtrafniejsze fragmenty podręcznika (numerowane):\n{ctx}\n\n"
-        f"{answer_format}\n\n"
-        "Instrukcje: Odpowiadaj tylko na podstawie powyższych fragmentów. "
-        "Nie wymyślaj, nie dodawaj nic poza formatem."
-    )
+    user_prompt = enhance_prompt(q_clean, intent, ctx)
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -77,12 +65,9 @@ def answer_question(state: Dict, question: str, top_k: int, seed: int):
     ]
 
     try:
-        start = time.time()
         out = call_llama(messages, seed=seed)
-        ms = int((time.time() - start) * 1000)
-        debug = (
-            "\n\n---\nKontekst użyty do odpowiedzi:\n" + ctx + f"\n\n(LLM {ms} ms)"
-        )
-        return state, out + (debug if state.get("show_ctx") else "")
-    except Exception as e:
-        return state, f"Błąd zapytania do LLM: {e}"
+    except Exception as e:  # pragma: no cover - network failure
+        out = f"Błąd zapytania do LLM: {e}"
+    _log(user_prompt, out)
+    parser_info = f"{intent['match']} (pewność {intent['confidence']:.2f})"
+    return parser_info, out, ctx

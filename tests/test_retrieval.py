@@ -16,7 +16,8 @@ def test_md_to_pages_splits_file():
 
 
 def test_bm25_index_search_returns_results():
-    rules_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "rules.md")
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    rules_path = os.path.join(base_dir, "data", "rules.md")
     with open(rules_path, "r", encoding="utf-8") as f:
         rules_text = f.read()
     pages = md_to_pages(rules_text)

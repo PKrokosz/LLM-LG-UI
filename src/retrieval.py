@@ -57,6 +57,17 @@ def md_to_pages(md_text: str, page_chars: int = 1400) -> List[Dict]:
         buf, buf_len, buf_sec = [], 0, None
 
     for sec, blk in blocks:
+        # If single block exceeds page limit, split into chunks
+        if len(blk) > page_chars:
+            for i in range(0, len(blk), page_chars):
+                sub = blk[i : i + page_chars]
+                if buf_len > 0:
+                    flush()
+                buf_sec = sec
+                buf.append(sub)
+                buf_len = len(sub)
+                flush()
+            continue
         if not buf_sec:
             buf_sec = sec
         if buf_len + len(blk) > page_chars and buf_len > 0:
