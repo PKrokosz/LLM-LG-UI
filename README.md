@@ -1,43 +1,48 @@
 # Gothic LARP Q&A UI
 
-Interaktywny UI do zadawania pytań na podstawie markdownowego podręcznika Gothic LARP, z wykorzystaniem lokalnego LLM (Phi-3) i RAG (BM25 + context-injection).
+Prosty interfejs Gradio do zadawania pytań na podstawie podręczników w formacie Markdown.
+Aplikacja przy starcie automatycznie wczytuje wszystkie pliki `.md` z katalogu `data/`
+ i buduje indeks BM25. Zapytania są wysyłane do lokalnego serwera LLM.
 
 ## Wymagania
 
 - Python 3.10+
-- llama-cpp-python (serwer LLM)
+- działający serwer LLM (np. `llama.cpp` zgodny z API OpenAI)
 - gradio
 - rank_bm25
 - requests
 - unidecode
+- rapidfuzz
 
 ## Instalacja
 
 ```bash
 pip install -r requirements.txt
-# opcjonalnie, dla lokalnego serwera LLM
-pip install llama-cpp-python
 ```
+
+## Przygotowanie danych
+
+1. Umieść podręczniki w formacie Markdown w katalogu `data/`.
+2. W pliku `data/questions.txt` umieść przykładowe pytania (po jednym w linii) –
+   służą do parsowania intencji użytkownika.
 
 ## Uruchomienie
 
 ```bash
-python gothic_rag_ui_parser.py
+python -m src.app
 ```
 
-Aplikacja nasłuchuje domyślnie pod adresem [http://localhost:7860](http://localhost:7860). Upewnij się, że serwer LLM (np. `llama-cpp-python` z modelem Phi-3) jest uruchomiony i dostępny pod adresem ustawionym w `LLAMA_BASE_URL` (domyślnie `http://127.0.0.1:8000`).
+Po uruchomieniu pojawi się pole do wpisania pytania. W odpowiedzi zobaczysz:
 
-## Przykładowe pytania
+- dopasowane pytanie z parsera (z wartością pewności),
+- odpowiedź modelu (format Markdown),
+- fragmenty źródłowe użyte do odpowiedzi.
 
-- Jak się walczy?
-- Co daje karta łowcy?
-- Ile many kosztuje rzut runą?
+Każde zapytanie wraz z wzbogaconym promptem i odpowiedzią trafia do pliku `log.txt`
+(w katalogu głównym) – ułatwia to debugowanie.
 
-### Format odpowiedzi
+## Testy
 
+```bash
+pytest
 ```
-Odpowiedź: <2–4 zdania z podręcznika; jeśli brak — 'Nie ma tego w podręczniku.'>
-Cytat: "<krótki cytat z kontekstu>" (opcjonalnie)
-Źródła: [Strona X — Sekcja: Y]; [Strona ...]
-```
-
