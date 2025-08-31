@@ -3,6 +3,7 @@ from __future__ import annotations
 """Gradio UI with optional debug mode showing full logs."""
 
 from pathlib import Path
+import json
 
 import gradio as gr
 
@@ -36,6 +37,22 @@ def toggle_debug(enabled: bool) -> gr.components.Textbox:
     return gr.Textbox.update(visible=enabled)
 
 
+def load_frequent_questions() -> list[str]:
+    """Load predefined frequent questions from JSON file."""
+    fq_path = Path(__file__).resolve().parent.parent / "frequent_questions.json"
+    try:
+        data = json.loads(fq_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return []
+    return data.get("questions", [])
+
+
+def ask_frequent(question: str) -> tuple[gr.Update, str, str, str, str]:
+    """Handle button click for a predefined question."""
+    out, debug_bar, ctx, logs = handle_question(question)
+    return gr.Textbox.update(value=question), out, debug_bar, ctx, logs
+
+
 def build_app():
     """Create Gradio Blocks application with debug toggle."""
     with gr.Blocks(css=".gr-textbox textarea {font-size: 14px}") as demo:
@@ -47,13 +64,20 @@ def build_app():
         )
 
         q = gr.Textbox(label="Twoje pytanie", placeholder="Np. Jak się walczy?", lines=2)
-        debug_toggle = gr.Checkbox(label="Tryb debug", value=False)
-        ask = gr.Button("Zapytaj", variant="primary")
-
         answer = gr.Markdown(label="Odpowiedź")
         debug_bar = gr.Markdown(label="Debug")
         context = gr.Markdown(label="Źródła i kontekst")
         logs = gr.Textbox(label="Pełne logi", lines=10, visible=False)
+
+        with gr.Row():
+            for q_text in load_frequent_questions():
+                gr.Button(q_text).click(
+                    lambda qt=q_text: ask_frequent(qt),
+                    outputs=[q, answer, debug_bar, context, logs],
+                )
+
+        debug_toggle = gr.Checkbox(label="Tryb debug", value=False)
+        ask = gr.Button("Zapytaj", variant="primary")
 
         debug_toggle.change(fn=toggle_debug, inputs=debug_toggle, outputs=logs)
         ask.click(fn=handle_question, inputs=q, outputs=[answer, debug_bar, context, logs])
