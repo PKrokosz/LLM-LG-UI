@@ -4,7 +4,11 @@ import re
 import unicodedata
 from typing import List
 
-from unidecode import unidecode
+try:
+    from unidecode import unidecode
+except ModuleNotFoundError:  # pragma: no cover - fallback when dependency missing
+    def unidecode(text: str) -> str:  # type: ignore[return-type]
+        return text
 
 
 def normalize(txt: str) -> str:

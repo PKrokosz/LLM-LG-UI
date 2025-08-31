@@ -3,7 +3,10 @@
 import re
 from typing import Dict, List, Tuple
 
-from rank_bm25 import BM25Okapi
+try:
+    from rank_bm25 import BM25Okapi
+except ModuleNotFoundError:  # pragma: no cover - fallback for optional dependency
+    BM25Okapi = None
 
 from .utils import tokenize_for_bm25
 
@@ -57,8 +60,8 @@ def md_to_pages(md_text: str, page_chars: int = 1400) -> List[Dict]:
         buf, buf_len, buf_sec = [], 0, None
 
     for sec, blk in blocks:
-        # If single block exceeds page limit, split into chunks
-        if len(blk) > page_chars:
+        # If single block meets or exceeds page limit, split into chunks
+        if len(blk) >= page_chars:
             for i in range(0, len(blk), page_chars):
                 sub = blk[i : i + page_chars]
                 if buf_len > 0:
@@ -83,6 +86,10 @@ class BM25Index:
     """Simple BM25 index over pseudo-pages."""
 
     def __init__(self, pages: List[Dict]):
+        if BM25Okapi is None:  # pragma: no cover - dependency guard
+            raise ModuleNotFoundError(
+                "rank_bm25 is required for BM25Index. Install 'rank_bm25' to use this feature."
+            )
         self.pages = pages
         tokenized = [tokenize_for_bm25(p["text"]) for p in pages]
         self.bm25 = BM25Okapi(tokenized)
