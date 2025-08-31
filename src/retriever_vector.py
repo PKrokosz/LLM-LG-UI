@@ -49,9 +49,6 @@ class VectorIndex:
         """Return top-k pages most similar to query."""
         q_emb = self.model.encode([query], convert_to_numpy=True, show_progress_bar=False)
         faiss.normalize_L2(q_emb)
-        # faiss.IndexFlatIP requires k <= number of indexed vectors (ntotal). Clamp the
-        # search request to the number of pages to avoid faiss::Error when the caller asks
-        # for more results than available in the index.
         k = min(k, len(self.pages))
         if k == 0:
             return []

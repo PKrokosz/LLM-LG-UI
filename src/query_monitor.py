@@ -3,11 +3,13 @@ from __future__ import annotations
 """Anonymised logging of user queries."""
 
 import json
+import os
 import uuid
 from datetime import datetime
 from pathlib import Path
 
-LOG_DIR = Path(__file__).resolve().parent.parent / "user_logs"
+DEFAULT_LOG_DIR = Path.home() / ".llm_lg_ui" / "user_logs"
+LOG_DIR = Path(os.getenv("LLM_LG_UI_LOG_DIR", DEFAULT_LOG_DIR))
 
 
 def log_query(query: str) -> Path:
@@ -18,7 +20,7 @@ def log_query(query: str) -> Path:
     query: str
         Raw user question to store.
     """
-    LOG_DIR.mkdir(exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
     entry = {
         "uuid": str(uuid.uuid4()),
         "timestamp": datetime.utcnow().isoformat(),
