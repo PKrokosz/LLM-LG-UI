@@ -1,7 +1,6 @@
 import os
 import re
 import time
-import unicodedata
 from pathlib import Path
 from typing import List, Dict, Tuple
 
@@ -14,19 +13,10 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     requests = None
 
-try:
-    from rank_bm25 import BM25Okapi
-except Exception:  # pragma: no cover - optional dependency
-    BM25Okapi = None
-try:
-    from unidecode import unidecode
-except Exception:  # pragma: no cover - optional dependency
-    def unidecode(txt: str) -> str:  # type: ignore
-        if not isinstance(txt, str):
-            return txt
-        decomposed = unicodedata.normalize("NFKD", txt)
-        return "".join(c for c in decomposed if not unicodedata.combining(c))
 from difflib import SequenceMatcher
+
+from modules.retrieval import BM25Index, md_to_pages
+from modules.utils import normalize
 
 # -----------------------------
 # Config
@@ -36,93 +26,6 @@ LLAMA_MODEL = os.environ.get("LLAMA_MODEL", "local")
 MAX_TOKENS = int(os.environ.get("MAX_TOKENS", 384))
 TEMPERATURE = float(os.environ.get("TEMPERATURE", 0.2))
 STOP = ["<|end|>", "</s>", "<|endoftext|>"]
-
-# -----------------------------
-# Utils: text processing & chunking
-# -----------------------------
-def normalize(txt: str) -> str:
-    txt = unicodedata.normalize("NFKC", txt)
-    txt = unidecode(txt).lower()
-    txt = re.sub(r"\s+", " ", txt).strip()
-    return txt
-
-HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
-
-def md_to_pages(md_text: str, page_chars: int = 1400) -> List[Dict]:
-    last_h = {1: None, 2: None, 3: None}
-    pos = 0
-    blocks: List[Tuple[str, str]] = []
-
-    for m in HEADING_RE.finditer(md_text):
-        start, end = m.span()
-        if start > pos:
-            chunk = md_text[pos:start]
-            if chunk.strip():
-                sec = " / ".join([h for h in [last_h[1], last_h[2], last_h[3]] if h])
-                blocks.append((sec, chunk.strip()))
-        level = len(m.group(1))
-        title = m.group(2).strip()
-        if level <= 3:
-            last_h[level] = title
-            for lv in range(level + 1, 4):
-                last_h[lv] = None
-        pos = end
-
-    if pos < len(md_text):
-        chunk = md_text[pos:]
-        if chunk.strip():
-            sec = " / ".join([h for h in [last_h[1], last_h[2], last_h[3]] if h])
-            blocks.append((sec, chunk.strip()))
-
-    pages: List[Dict] = []
-    buf: List[str] = []
-    buf_len = 0
-    buf_sec = None
-    page_no = 1
-
-    def flush():
-        nonlocal buf, buf_len, buf_sec, page_no
-        if buf_len == 0:
-            return
-        text = "\n\n".join(buf).strip()
-        pages.append({"page": page_no, "section": buf_sec or "", "text": text})
-        page_no += 1
-        buf, buf_len, buf_sec = [], 0, None
-
-    for sec, blk in blocks:
-        if not buf_sec:
-            buf_sec = sec
-        if buf_len + len(blk) > page_chars and buf_len > 0:
-            flush()
-            buf_sec = sec
-        buf.append(blk)
-        buf_len += len(blk)
-    flush()
-    return pages
-
-def tokenize_for_bm25(text: str) -> List[str]:
-    text = normalize(text)
-    return re.findall(r"[a-z0-9_]+", text)
-
-# -----------------------------
-# BM25 index
-# -----------------------------
-class BM25Index:
-    def __init__(self, pages: List[Dict]):
-        self.pages = pages
-        self.bm25 = BM25Okapi([tokenize_for_bm25(p["text"]) for p in pages])
-
-    def search(self, query: str, k: int = 4) -> List[Dict]:
-        tq = tokenize_for_bm25(query)
-        scores = self.bm25.get_scores(tq)
-        order = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
-        results = []
-        for i in order:
-            p = dict(self.pages[i])
-            p["score"] = float(scores[i])
-            p["preview"] = (p["text"][:700] + ("…" if len(p["text"]) > 700 else "")).replace("\n", " ")
-            results.append(p)
-        return results
 
 # -----------------------------
 # FAQ/Rules Parser (Intent Router)
