@@ -12,6 +12,10 @@ class _BaseIndex:
     def add(self, vecs: np.ndarray) -> None:
         self.vecs = vecs.astype("float32")
 
+    @property
+    def ntotal(self) -> int:
+        return 0 if self.vecs is None else len(self.vecs)
+
     def _search(self, q: np.ndarray, k: int, metric) -> tuple[np.ndarray, np.ndarray]:
         if self.vecs is None:
             return np.zeros((q.shape[0], k)), -np.ones((q.shape[0], k), dtype=int)

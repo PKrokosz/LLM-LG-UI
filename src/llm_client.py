@@ -3,7 +3,7 @@
 from modules.logic import llm_client as _impl
 from modules.logic.llm_client import *  # noqa: F401,F403
 
-_log = _impl._log
+_log = getattr(_impl, "_log", None)
 
 
 def answer_question(*args, **kwargs):
