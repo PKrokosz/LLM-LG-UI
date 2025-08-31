@@ -3,10 +3,13 @@ from pathlib import Path
 
 import gradio as gr
 
-from .llm_client import answer_question
-from .retrieval import BM25Index, md_to_pages
+from modules.logic.llm_client import answer_question
+from modules.retrieval.retrieval import BM25Index, md_to_pages
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+
+
+_INDEX: BM25Index | None = None
 
 
 def _load_index() -> BM25Index:
@@ -16,11 +19,15 @@ def _load_index() -> BM25Index:
     return BM25Index(pages)
 
 
-INDEX = _load_index()
+def _get_index() -> BM25Index:
+    global _INDEX
+    if _INDEX is None:
+        _INDEX = _load_index()
+    return _INDEX
 
 
 def handle_question(question: str) -> tuple[str, str, str]:
-    return answer_question(INDEX, question)
+    return answer_question(_get_index(), question)
 
 
 def build_app():
