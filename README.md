@@ -1,4 +1,5 @@
 # Gothic LARP Q&A UI
+![CI](https://github.com/<ORG>/<REPO>/actions/workflows/ci.yml/badge.svg)
 
 Prosty interfejs Gradio do zadawania pytań na podstawie podręczników w formacie Markdown.
 Aplikacja przy starcie automatycznie wczytuje wszystkie pliki `.md` z katalogu `data/`
@@ -44,5 +45,20 @@ Każde zapytanie wraz z wzbogaconym promptem i odpowiedzią trafia do pliku `log
 ## Testy
 
 ```bash
+pytest
+```
+
+## Development
+
+```bash
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+pre-commit install
+```
+
+Run the tests and linters:
+
+```bash
+pre-commit run --files <changed files>
 pytest
 ```
