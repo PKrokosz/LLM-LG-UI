@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 import requests
 
 from .config import LLAMA_BASE_URL, LLAMA_MODEL, MAX_TOKENS, STOP, TEMPERATURE
-from .intent_parser import parse_intent
+from .intent_embedder import parse_intent
 from .prompt_enhancer import enhance_prompt
 from .retrieval import BM25Index
 
