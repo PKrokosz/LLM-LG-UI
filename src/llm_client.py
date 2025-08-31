@@ -56,6 +56,13 @@ def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 4
 
     intent = parse_intent(q_clean)
     hits = idx.search(q_clean, k=top_k)
+    if intent["confidence"] > 0.5:
+        topic_hint = intent["match"].split()[0].lower()
+        hits = sorted(
+            hits,
+            key=lambda h: topic_hint in h.get("section", "").lower(),
+            reverse=True,
+        )
     ctx = format_context(hits)
     user_prompt = enhance_prompt(q_clean, intent, ctx)
 
@@ -68,6 +75,15 @@ def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 4
         out = call_llama(messages, seed=seed)
     except Exception as e:  # pragma: no cover - network failure
         out = f"Błąd zapytania do LLM: {e}"
+    if "Nie ma tego w podręczniku" in out and "Strona" in ctx:
+        out = out.replace(
+            "Nie ma tego w podręczniku",
+            "[Popraw: cytat błędny – mimo obecności kontekstu]",
+        )
     _log(user_prompt, out)
-    parser_info = f"{intent['match']} (pewność {intent['confidence']:.2f})"
-    return parser_info, out, ctx
+    parser_info = (
+        f"Parser: dopasowano '{intent['match']}' (pewność: {intent['confidence']:.2f})"
+    )
+    used_sections = ", ".join([f"{h['page']}:{h['section']}" for h in hits])
+    debug_bar = f"{parser_info} | Sekcje: {used_sections}"
+    return out, debug_bar, ctx

@@ -36,11 +36,11 @@ def build_app():
         q = gr.Textbox(label="Twoje pytanie", placeholder="Np. Jak się walczy?", lines=2)
         ask = gr.Button("Zapytaj", variant="primary")
 
-        parser_info = gr.Markdown(label="Parser")
         answer = gr.Markdown(label="Odpowiedź")
+        debug_bar = gr.Markdown(label="Debug")
         context = gr.Markdown(label="Źródła i kontekst")
 
-        ask.click(fn=handle_question, inputs=q, outputs=[parser_info, answer, context])
+        ask.click(fn=handle_question, inputs=q, outputs=[answer, debug_bar, context])
 
     return demo
 

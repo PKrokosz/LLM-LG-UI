@@ -7,7 +7,8 @@ def enhance_prompt(question: str, intent: Dict, context: str) -> str:
     intent_line = f"Dopasowane pytanie: {intent.get('match', '')} (pewność {intent.get('confidence', 0):.2f})"
     answer_format = (
         "FORMAT ODPOWIEDZI (stosuj dokładnie):\n"
-        "Odpowiedź: <2–4 krótkie zdania, tylko fakty z kontekstu; jeśli brak – 'Nie ma tego w podręczniku.'>\n"
+        "Odpowiedź: <2–4 krótkie zdania, tylko fakty z najtrafniejszych fragmentów powiązanych z tematem pytania (np. 'walka', 'magia'). Jeśli brak – napisz: 'Nie ma tego w podręczniku.'>\n"
+        "Nie cytuj fragmentów niepowiązanych tematycznie (np. alchemii dla pytania o walkę).\n"
         "Cytaty: \"<cytat1>\" ; \"<cytat2>\" (każdy ≤ 20 słów, dosłownie z kontekstu; jeśli masz tylko jeden – podaj jeden)\n"
         "Źródła: [Strona X — Sekcja: Y]; [Strona …]"
     )
