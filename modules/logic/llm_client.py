@@ -6,7 +6,7 @@ import requests
 from .config import LLAMA_BASE_URL, LLAMA_MODEL, MAX_TOKENS, STOP, TEMPERATURE
 from .intent_embedder import parse_intent
 from modules.prompting.prompt_enhancer import enhance_prompt
-from modules.retrieval.retrieval import BM25Index
+from modules.retrieval.retriever_interface import RetrieverInterface
 from .metrics_logger import MetricsLogger
 from .query_monitor import log_query
 from .logger_async import async_logger
@@ -53,7 +53,7 @@ def _log(prompt: str, answer: str) -> None:
     async_logger.log(prompt, answer)
 
 
-def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 42) -> Tuple[str, str, str]:
+def answer_question(idx: RetrieverInterface, question: str, top_k: int = 3, seed: int = 42) -> Tuple[str, str, str]:
     """Handle question answering using retrieval and LLM."""
     logger = MetricsLogger()
     logger.start()

@@ -4,22 +4,23 @@ from pathlib import Path
 import gradio as gr
 
 from modules.logic.llm_client import answer_question
-from modules.retrieval.retrieval import BM25Index, md_to_pages
+from modules.retrieval import create_retriever, md_to_pages
+from modules.retrieval.retriever_interface import RetrieverInterface
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 
-_INDEX: BM25Index | None = None
+_INDEX: RetrieverInterface | None = None
 
 
-def _load_index() -> BM25Index:
+def _load_index() -> RetrieverInterface:
     pages = []
     for md_path in DATA_DIR.glob("*.md"):
         pages.extend(md_to_pages(md_path.read_text(encoding="utf-8")))
-    return BM25Index(pages)
+    return create_retriever("hybrid", pages)
 
 
-def _get_index() -> BM25Index:
+def _get_index() -> RetrieverInterface:
     global _INDEX
     if _INDEX is None:
         _INDEX = _load_index()
