@@ -38,6 +38,7 @@ def test_answer_question_preserves_order_on_low_conf(monkeypatch):
     monkeypatch.setattr(llm_client, "call_llama", lambda messages, seed: "odp")
 
     ans, debug, ctx = llm_client.answer_question(DummyIndex(), "Jak się walczy?")
-    assert ans == "odp"
+    assert ans.startswith("odp")
+    assert ans.endswith("Sekcja Alchemia.")
     assert "Sekcje: 1:Alchemia, 2:Walka, 3:Smierc" in debug
     assert ctx.splitlines()[0].startswith("[1] Strona 1")
