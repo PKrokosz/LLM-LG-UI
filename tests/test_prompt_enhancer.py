@@ -12,5 +12,5 @@ def test_enhance_prompt_mentions_topic_relevance():
         {"match": "walka", "confidence": 0.7},
         "[1] Strona 1 — Sekcja: Walka\nPrzykładowy tekst"
     )
-    assert "najtrafniejszych fragmentów powiązanych z tematem pytania" in prompt
-    assert "Nie cytuj fragmentów niepowiązanych tematycznie" in prompt
+    assert "Wpleć 1–2 cytaty" in prompt
+    assert "Źródło: Strona X – Sekcja Y" in prompt

@@ -6,6 +6,7 @@ import requests
 from .config import LLAMA_BASE_URL, LLAMA_MODEL, MAX_TOKENS, STOP, TEMPERATURE
 from .intent_embedder import parse_intent
 from modules.prompting.prompt_enhancer import enhance_prompt
+from modules.prompting.response_formatter import weave_quotes
 from modules.retrieval.retriever_interface import RetrieverInterface
 from .metrics_logger import MetricsLogger
 from .query_monitor import log_query
@@ -14,12 +15,36 @@ from .fallback_logic import neutral_fallback, needs_fallback
 from .confidence_mode import is_confident
 
 SYSTEM_PROMPT = (
-    "Pisz po polsku. Bądź krótka, konkretna, bez dygresji. "
+    "Jesteś przyjaznym tutorem dla nowego gracza. Pisz po polsku, krótko i konkretnie. "
     "Odpowiadaj tylko na podstawie przekazanego kontekstu. "
-    "Jeśli w kontekście nie ma odpowiedzi – napisz: 'Nie ma tego w podręczniku.' "
-    "ZAWSZE podaj źródło jako: [Strona X — Sekcja: Y]. "
-    "Wpleć 1–2 krótkie cytaty (<= 20 słów) dokładnie z kontekstu."
+    "Jeśli w kontekście nie ma odpowiedzi – napisz: 'Nie ma tego w podręczniku.'"
 )
+
+
+def _extract_quotes(hits: List[Dict], limit: int = 2) -> List[str]:
+    """Return up to ``limit`` short quotes from retrieval hits."""
+    quotes: List[str] = []
+    for h in hits[:limit]:
+        text = (h.get("preview") or "").strip()
+        if not text:
+            continue
+        words = text.split()
+        quotes.append(" ".join(words[:20]))
+    return quotes
+
+
+def _paraphrase_if_echo(answer: str, question: str, seed: int) -> str:
+    """Paraphrase ``answer`` if it repeats ``question``."""
+    if question and question.lower() in answer.lower():
+        messages = [
+            {"role": "system", "content": "Parafrazuj odpowiedź po polsku, bez powtarzania pytania."},
+            {"role": "user", "content": answer},
+        ]
+        try:
+            return call_llama(messages, seed=seed)
+        except Exception:  # pragma: no cover - network failure
+            return answer
+    return answer
 
 
 def call_llama(messages: List[Dict], seed: int = 42) -> str:
@@ -66,6 +91,7 @@ def answer_question(idx: RetrieverInterface, question: str, top_k: int = 3, seed
 
     intent = parse_intent(q_clean)
     hits = idx.search(q_clean, k=top_k)
+    quotes = _extract_quotes(hits)
     if needs_fallback(hits):
         logger.end()
         return neutral_fallback(), "Brak dopasowań.", ""
@@ -92,13 +118,21 @@ def answer_question(idx: RetrieverInterface, question: str, top_k: int = 3, seed
         logger.first_response()
     except Exception as e:  # pragma: no cover - network failure
         llm_out = f"Błąd zapytania do LLM: {e}"
+
     if "nie ma tego w podręczniku" in llm_out.lower() and ctx.strip():
-        llm_out = "[Popraw: cytat błędny – mimo obecności kontekstu]"
-    async_logger.log(user_prompt, llm_out)
+        final_ans = "[Popraw: cytat błędny – mimo obecności kontekstu]"
+    else:
+        llm_out = _paraphrase_if_echo(llm_out, q_clean, seed)
+        final_ans = weave_quotes(llm_out, quotes)
+        src = hits[0]
+        sec = src.get("section") or "(brak)"
+        final_ans = f"{final_ans} Źródło: Strona {src['page']} – Sekcja {sec}."
+
+    async_logger.log(user_prompt, final_ans)
     logger.end()
     parser_info = (
         f"Parser: dopasowano '{intent['match']}' (pewność: {intent['confidence']:.2f})"
     )
     used_sections = ", ".join([f"{h['page']}:{h['section']}" for h in hits])
     debug_bar = f"{parser_info} | Sekcje: {used_sections}"
-    return llm_out, debug_bar, ctx
+    return final_ans, debug_bar, ctx
