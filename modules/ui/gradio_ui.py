@@ -34,10 +34,13 @@ def _get_index() -> RetrieverInterface:
 
 def handle_question(question: str) -> tuple[str, str, str, str]:
     out, debug_bar, ctx = answer_question(_get_index(), question)
+    chunks = ctx.split("\n\n") if ctx else []
+    quality = "⚑" if len(chunks) <= 1 else "✓"
+    tldr = f"{quality} {out}"
     logs = ""
     if debug_mode.is_debug():
         logs = f"PROMPT:\n{question}\n\nRETRIEVAL:\n{ctx}\n\nODPOWIEDŹ:\n{out}"
-    return out, debug_bar, ctx, logs
+    return tldr, debug_bar, ctx, logs
 
 
 def toggle_debug(enabled: bool) -> gr.components.Textbox:
@@ -72,9 +75,10 @@ def build_app():
         )
 
         q = gr.Textbox(label="Twoje pytanie", placeholder="Np. Jak się walczy?", lines=2)
-        answer = gr.Markdown(label="Odpowiedź")
-        debug_bar = gr.Markdown(label="Debug")
-        context = gr.Markdown(label="Źródła i kontekst")
+        answer = gr.Markdown(label="TL;DR")
+        with gr.Accordion("Z czego to wzięto", open=False):
+            context = gr.Markdown(label="Źródła i kontekst")
+            debug_bar = gr.Markdown(label="Debug")
         logs = gr.Textbox(label="Pełne logi", lines=10, visible=False)
 
         with gr.Row():

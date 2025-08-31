@@ -28,7 +28,10 @@ def _get_index() -> RetrieverInterface:
 
 
 def handle_question(question: str) -> tuple[str, str, str]:
-    return answer_question(_get_index(), question)
+    out, debug_bar, ctx = answer_question(_get_index(), question)
+    chunks = ctx.split("\n\n") if ctx else []
+    quality = "⚑" if len(chunks) <= 1 else "✓"
+    return f"{quality} {out}", debug_bar, ctx
 
 
 def build_app():
@@ -44,9 +47,10 @@ def build_app():
         q = gr.Textbox(label="Twoje pytanie", placeholder="Np. Jak się walczy?", lines=2)
         ask = gr.Button("Zapytaj", variant="primary")
 
-        answer = gr.Markdown(label="Odpowiedź")
-        debug_bar = gr.Markdown(label="Debug")
-        context = gr.Markdown(label="Źródła i kontekst")
+        answer = gr.Markdown(label="TL;DR")
+        with gr.Accordion("Z czego to wzięto", open=False):
+            context = gr.Markdown(label="Źródła i kontekst")
+            debug_bar = gr.Markdown(label="Debug")
 
         ask.click(fn=handle_question, inputs=q, outputs=[answer, debug_bar, context])
 
