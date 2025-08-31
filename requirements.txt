@@ -1,6 +1,6 @@
+PyYAML
 gradio
+rapidfuzz
 rank_bm25
 requests
 unidecode
-rapidfuzz
-PyYAML
