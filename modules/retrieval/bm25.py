@@ -3,12 +3,14 @@
 import re
 from typing import Dict, List, Tuple
 
+from .retriever_interface import Retriever
+
 try:
     from rank_bm25 import BM25Okapi
 except ModuleNotFoundError:  # pragma: no cover - fallback for optional dependency
     BM25Okapi = None
 
-from .utils import tokenize_for_bm25
+from modules.utils import tokenize_for_bm25
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
@@ -82,7 +84,7 @@ def md_to_pages(md_text: str, page_chars: int = 1400) -> List[Dict]:
     return pages
 
 
-class BM25Index:
+class BM25Index(Retriever):
     """Simple BM25 index over pseudo-pages."""
 
     def __init__(self, pages: List[Dict]):

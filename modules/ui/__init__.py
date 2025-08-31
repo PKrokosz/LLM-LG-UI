@@ -3,10 +3,10 @@ from pathlib import Path
 
 import gradio as gr
 
-from .llm_client import answer_question
-from .retrieval import BM25Index, md_to_pages
+from modules.logic.llm_client import answer_question
+from modules.retrieval import BM25Index, md_to_pages
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 
 def _load_index() -> BM25Index:

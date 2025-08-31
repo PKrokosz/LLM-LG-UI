@@ -7,7 +7,7 @@ import re
 from rapidfuzz import process, fuzz
 from unidecode import unidecode
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 QUESTIONS_FILE = DATA_DIR / "questions.txt"
 
 

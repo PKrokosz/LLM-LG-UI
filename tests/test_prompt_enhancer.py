@@ -1,9 +1,10 @@
 import os
+import os
 import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from src.prompt_enhancer import enhance_prompt
+from modules.prompting import enhance_prompt
 
 
 def test_enhance_prompt_mentions_topic_relevance():

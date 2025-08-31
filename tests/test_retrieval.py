@@ -5,7 +5,7 @@ import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from src.retrieval import BM25Index, md_to_pages
+from modules.retrieval import BM25Index, md_to_pages
 
 
 def test_md_to_pages_splits_file():

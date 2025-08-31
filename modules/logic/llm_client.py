@@ -3,10 +3,13 @@ from typing import Dict, List, Tuple
 
 import requests
 
-from .config import LLAMA_BASE_URL, LLAMA_MODEL, MAX_TOKENS, STOP, TEMPERATURE
-from .intent_parser import parse_intent
-from .prompt_enhancer import enhance_prompt
-from .retrieval import BM25Index
+from modules.config import LLAMA_BASE_URL, LLAMA_MODEL, MAX_TOKENS, STOP, TEMPERATURE
+from modules.parser import parse_intent
+from modules.prompting import enhance_prompt
+from modules.retrieval import Retriever
+from modules.logic.logger_async import get_logger
+from modules.logic.fallback_logic import should_fallback, FALLBACK_MESSAGE
+from modules.logic.confidence_mode import should_cite_only, CONFIDENCE_THRESHOLD
 
 SYSTEM_PROMPT = (
     "Pisz po polsku. Bądź krótka, konkretna, bez dygresji. "
@@ -43,19 +46,20 @@ def format_context(chunks: List[Dict]) -> str:
     return "\n\n".join(lines)
 
 
-def _log(prompt: str, answer: str) -> None:
-    with open("log.txt", "a", encoding="utf-8") as f:
-        f.write("PROMPT:\n" + prompt + "\n\nANSWER:\n" + answer + "\n" + "-" * 40 + "\n")
+logger = get_logger()
 
 
-def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 42) -> Tuple[str, str, str]:
-    """Handle question answering using BM25 retrieval and LLM."""
+def answer_question(idx: Retriever, question: str, top_k: int = 3, seed: int = 42) -> Tuple[str, str, str]:
+    """Handle question answering using retrieval backend and LLM."""
     q_clean = (question or "").strip()
     if len(q_clean) < 3:
         return "", "Doprecyzuj pytanie (np. 'Jak się walczy?').", ""
 
     intent = parse_intent(q_clean)
     hits = idx.search(q_clean, k=top_k)
+    if should_fallback(hits):
+        logger.log(q_clean, FALLBACK_MESSAGE)
+        return FALLBACK_MESSAGE, "Brak dopasowań", ""
     if intent["confidence"] > 0.5:
         topic_hint = intent["match"].split()[0].lower()
         hits = sorted(
@@ -64,6 +68,9 @@ def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 4
             reverse=True,
         )
     ctx = format_context(hits)
+    if should_cite_only(hits, threshold=CONFIDENCE_THRESHOLD):
+        logger.log(q_clean, ctx)
+        return "", "Niski score – tylko cytat", ctx
     user_prompt = enhance_prompt(q_clean, intent, ctx)
 
     messages = [
@@ -80,7 +87,7 @@ def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 4
             "Nie ma tego w podręczniku",
             "[Popraw: cytat błędny – mimo obecności kontekstu]",
         )
-    _log(user_prompt, out)
+    logger.log(user_prompt, out)
     parser_info = (
         f"Parser: dopasowano '{intent['match']}' (pewność: {intent['confidence']:.2f})"
     )

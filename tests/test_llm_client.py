@@ -5,7 +5,7 @@ import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from src import llm_client
+from modules.logic import llm_client
 
 
 class DummyIndex:
