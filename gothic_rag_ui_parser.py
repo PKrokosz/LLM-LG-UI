@@ -4,10 +4,27 @@ import time
 import unicodedata
 from typing import List, Dict, Tuple
 
-import gradio as gr
-import requests
-from rank_bm25 import BM25Okapi
-from unidecode import unidecode
+try:
+    import gradio as gr
+except Exception:  # pragma: no cover - optional dependency
+    gr = None
+try:
+    import requests
+except Exception:  # pragma: no cover - optional dependency
+    requests = None
+
+try:
+    from rank_bm25 import BM25Okapi
+except Exception:  # pragma: no cover - optional dependency
+    BM25Okapi = None
+try:
+    from unidecode import unidecode
+except Exception:  # pragma: no cover - optional dependency
+    def unidecode(txt: str) -> str:  # type: ignore
+        if not isinstance(txt, str):
+            return txt
+        decomposed = unicodedata.normalize("NFKD", txt)
+        return "".join(c for c in decomposed if not unicodedata.combining(c))
 from difflib import SequenceMatcher
 
 # -----------------------------
@@ -140,7 +157,7 @@ KEYWORD_MAP = {
     "walka": ["pojedynki", "punkty zdrowia", "pz", "trafienia", "koniec sceny"],
     "magia": ["mana", "czary", "zwoje", "runy", "rytualy"],
     "alchemia": ["mikstury", "trucizny", "esencje", "receptury"],
-    "kradziez": ["przerwa fabularna", "oznakowanie przedmiotow", "fioletowa nalepka", "zielona nalepka"],
+    "kradziez": ["krasc", "ukrasc", "przerwa fabularna", "oznakowanie przedmiotow", "fioletowa nalepka", "zielona nalepka"],
     "lowcy": ["karta lowcy", "patroszenie", "noz bezpieczny"],
 }
 
@@ -151,6 +168,64 @@ def expand_keywords(q: str) -> str:
         if key in qn:
             extra += vals
     return q if not extra else f"{q}, " + ", ".join(extra)
+
+# -----------------------------
+# Intent parsing
+# -----------------------------
+INTENT_KEYWORDS = {k: [k] + v for k, v in KEYWORD_MAP.items()}
+INTENT_FILES = ["FAQ LARP GOTHIC.md", "rules.md"]
+
+
+def _detect_intent(text: str) -> str:
+    qn = normalize(text)
+    for intent, words in INTENT_KEYWORDS.items():
+        for w in words:
+            if w in qn:
+                return intent
+    return "inne"
+
+
+def _build_question_catalog(paths: List[str]) -> Tuple[List[str], Dict[str, str]]:
+    catalog: List[str] = []
+    intents: Dict[str, str] = {}
+    for p in paths:
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                qs = extract_questions_from_md(f.read())
+                for q in qs:
+                    catalog.append(q)
+                    intents[q] = _detect_intent(q)
+    return catalog, intents
+
+
+QUESTION_CATALOG, QUESTION_INTENTS = _build_question_catalog(INTENT_FILES)
+
+
+def parse_intent(question: str) -> Dict:
+    """Return best matched question and intent for a user query.
+
+    Args:
+        question: User provided question.
+
+    Returns:
+        Dict with keys: intent (str), match (str), confidence (float 0-1).
+    """
+
+    q_expanded = expand_keywords(question)
+    intent = _detect_intent(question)
+    catalog = (
+        [q for q in QUESTION_CATALOG if QUESTION_INTENTS.get(q) == intent]
+        if intent != "inne"
+        else QUESTION_CATALOG
+    )
+    match, score = best_match(q_expanded, catalog)
+    if intent == "inne" and match:
+        intent = QUESTION_INTENTS.get(match, "inne")
+    return {
+        "intent": intent,
+        "match": match,
+        "confidence": round(score, 2),
+    }
 
 # -----------------------------
 # LLM call
