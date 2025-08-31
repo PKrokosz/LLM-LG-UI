@@ -33,7 +33,9 @@ def test_vector_search(vector_index):
     assert len(res) > 0
 
 
-def test_hybrid_search(bm25_index, vector_index):
+def test_hybrid_search_top2_and_logs(bm25_index, vector_index, caplog):
     hybrid = HybridRetriever(bm25_index, vector_index)
-    res = hybrid.search("Jak się walczy?")
-    assert len(res) > 0
+    with caplog.at_level("INFO"):
+        res = hybrid.search("Jak się walczy?")
+    assert 1 <= len(res) <= 2
+    assert any("chunks_selected=" in m for m in caplog.text.splitlines())

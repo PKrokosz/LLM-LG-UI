@@ -1,1 +1,7 @@
 confidence_threshold: 0.3
+retrieval:
+  top_k_bm25: 8
+  top_k_vec: 8
+  k_final: 5
+  max_chunks: 2
+  min_similarity: 0.2
