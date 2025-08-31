@@ -1,0 +1,4 @@
+gradio
+rank_bm25
+requests
+unidecode
