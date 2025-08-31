@@ -69,7 +69,7 @@ def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 4
     if needs_fallback(hits):
         logger.end()
         return neutral_fallback(), "Brak dopasowań.", ""
-    if intent["confidence"] > 0.5:
+    if intent["confidence"] >= 0.5:
         topic_hint = intent["match"].split()[0].lower()
         hits = sorted(
             hits,
@@ -88,20 +88,17 @@ def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 4
     ]
 
     try:
-        out = call_llama(messages, seed=seed)
+        llm_out = call_llama(messages, seed=seed)
         logger.first_response()
     except Exception as e:  # pragma: no cover - network failure
-        out = f"Błąd zapytania do LLM: {e}"
-    if "Nie ma tego w podręczniku" in out and "Strona" in ctx:
-        out = out.replace(
-            "Nie ma tego w podręczniku",
-            "[Popraw: cytat błędny – mimo obecności kontekstu]",
-        )
-    async_logger.log(user_prompt, out)
+        llm_out = f"Błąd zapytania do LLM: {e}"
+    if "nie ma tego w podręczniku" in llm_out.lower() and ctx.strip():
+        llm_out = "[Popraw: cytat błędny – mimo obecności kontekstu]"
+    async_logger.log(user_prompt, llm_out)
     logger.end()
     parser_info = (
         f"Parser: dopasowano '{intent['match']}' (pewność: {intent['confidence']:.2f})"
     )
     used_sections = ", ".join([f"{h['page']}:{h['section']}" for h in hits])
     debug_bar = f"{parser_info} | Sekcje: {used_sections}"
-    return out, debug_bar, ctx
+    return llm_out, debug_bar, ctx
