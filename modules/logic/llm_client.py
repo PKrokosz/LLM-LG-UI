@@ -9,7 +9,7 @@ from modules.prompting.prompt_enhancer import enhance_prompt
 from modules.prompting.response_formatter import weave_quotes
 from modules.retrieval.retriever_interface import RetrieverInterface
 from .metrics_logger import MetricsLogger
-from .query_monitor import log_query
+from .query_monitor import log_metrics, log_query
 from .logger_async import async_logger
 from .fallback_logic import neutral_fallback, needs_fallback
 from .confidence_mode import is_confident
@@ -73,16 +73,12 @@ def format_context(chunks: List[Dict]) -> str:
     return "\n\n".join(lines)
 
 
-def _log(prompt: str, answer: str) -> None:
-    """Backward-compatible synchronous wrapper for async logger."""
-    async_logger.log(prompt, answer)
-
 
 def answer_question(idx: RetrieverInterface, question: str, top_k: int = 3, seed: int = 42) -> Tuple[str, str, str]:
     """Handle question answering using retrieval and LLM."""
     logger = MetricsLogger()
     logger.start()
-    log_query(question)
+    request_id = log_query(question)
 
     q_clean = (question or "").strip()
     if len(q_clean) < 3:
@@ -128,8 +124,10 @@ def answer_question(idx: RetrieverInterface, question: str, top_k: int = 3, seed
         sec = src.get("section") or "(brak)"
         final_ans = f"{final_ans} Źródło: Strona {src['page']} – Sekcja {sec}."
 
-    async_logger.log(user_prompt, final_ans)
+    async_logger.log(user_prompt, final_ans, request_id)
     logger.end()
+    citations_ratio = int(len(quotes) / len(hits) * 100) if hits else 0
+    log_metrics(request_id, chunks_selected=len(hits), citations_used=citations_ratio)
     parser_info = (
         f"Parser: dopasowano '{intent['match']}' (pewność: {intent['confidence']:.2f})"
     )
