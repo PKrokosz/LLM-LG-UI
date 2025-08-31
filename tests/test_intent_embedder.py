@@ -1,10 +1,9 @@
 import os
-import os
 import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from src.intent_parser import parse_intent
+from src.intent_embedder import parse_intent
 
 
 def test_parse_intent_walka():
