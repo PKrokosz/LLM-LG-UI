@@ -7,6 +7,8 @@ from .config import LLAMA_BASE_URL, LLAMA_MODEL, MAX_TOKENS, STOP, TEMPERATURE
 from .intent_parser import parse_intent
 from .prompt_enhancer import enhance_prompt
 from .retrieval import BM25Index
+from .metrics_logger import MetricsLogger
+from .query_monitor import log_query
 
 SYSTEM_PROMPT = (
     "Pisz po polsku. Bądź krótka, konkretna, bez dygresji. "
@@ -50,8 +52,13 @@ def _log(prompt: str, answer: str) -> None:
 
 def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 42) -> Tuple[str, str, str]:
     """Handle question answering using BM25 retrieval and LLM."""
+    logger = MetricsLogger()
+    logger.start()
+    log_query(question)
+
     q_clean = (question or "").strip()
     if len(q_clean) < 3:
+        logger.end()
         return "", "Doprecyzuj pytanie (np. 'Jak się walczy?').", ""
 
     intent = parse_intent(q_clean)
@@ -73,6 +80,7 @@ def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 4
 
     try:
         out = call_llama(messages, seed=seed)
+        logger.first_response()
     except Exception as e:  # pragma: no cover - network failure
         out = f"Błąd zapytania do LLM: {e}"
     if "Nie ma tego w podręczniku" in out and "Strona" in ctx:
@@ -81,6 +89,7 @@ def answer_question(idx: BM25Index, question: str, top_k: int = 3, seed: int = 4
             "[Popraw: cytat błędny – mimo obecności kontekstu]",
         )
     _log(user_prompt, out)
+    logger.end()
     parser_info = (
         f"Parser: dopasowano '{intent['match']}' (pewność: {intent['confidence']:.2f})"
     )
