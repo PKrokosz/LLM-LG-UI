@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_LOG_DIR = Path.home() / ".llm_lg_ui" / "user_logs"
@@ -23,7 +23,7 @@ def log_query(query: str) -> Path:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     entry = {
         "uuid": str(uuid.uuid4()),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "query": query,
     }
     path = LOG_DIR / f"{entry['uuid']}.json"
