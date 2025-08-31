@@ -2,6 +2,7 @@ import os
 import re
 import time
 import unicodedata
+from pathlib import Path
 from typing import List, Dict, Tuple
 
 try:
@@ -173,7 +174,11 @@ def expand_keywords(q: str) -> str:
 # Intent parsing
 # -----------------------------
 INTENT_KEYWORDS = {k: [k] + v for k, v in KEYWORD_MAP.items()}
-INTENT_FILES = ["FAQ LARP GOTHIC.md", "rules.md"]
+MODULE_DIR = Path(__file__).resolve().parent
+INTENT_FILES = [
+    str(MODULE_DIR / "FAQ LARP GOTHIC.md"),
+    str(MODULE_DIR / "rules.md"),
+]
 
 
 def _detect_intent(text: str) -> str:
