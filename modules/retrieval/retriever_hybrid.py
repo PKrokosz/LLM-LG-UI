@@ -9,6 +9,7 @@ import logging
 import faiss
 import numpy as np
 import yaml
+from modules.logic.trace import emit
 
 from .retriever_interface import RetrieverInterface
 from .retrieval import BM25Index
@@ -16,6 +17,16 @@ from .retriever_vector import VectorIndex
 
 
 log = logging.getLogger(__name__)
+
+def _emit_results(run_id, stage, results, started_at=None, **kw):
+    import time
+    dur = None
+    if started_at is not None:
+        dur = int((time.time() - started_at) * 1000)
+    emit(run_id, stage,
+         results=[getattr(r, "to_log", lambda: {"preview": str(r)[:160]})() for r in results],
+         duration_ms=dur, **kw)
+
 
 
 def _load_cfg() -> Dict:
@@ -69,13 +80,18 @@ class HybridRetriever(RetrieverInterface):
             results.append(p)
         return results
 
-    def search(self, query: str, k: int | None = None) -> List[Dict]:
+    def search(self, query: str, k: int | None = None, run_id: str | None = None) -> List[Dict]:
         """Return up to ``max_chunks`` reranked results for ``query``."""
         q_emb = self.vector.model.encode([query], convert_to_numpy=True, show_progress_bar=False)
         faiss.normalize_L2(q_emb)
 
+        import time as _t
+        t0 = _t.time()
         b_res = self.bm25.search(query, self.top_k_bm25)
+        _emit_results(run_id, "retrieval.bm25.search", b_res, t0, top_k=self.top_k_bm25)
+        t1 = _t.time()
         v_res = self._vector_search(q_emb)
+        _emit_results(run_id, "retrieval.vec.search", v_res, t1, top_k=self.top_k_vec)
 
         rrf_scores: Dict[int, float] = {}
         for rank, res in enumerate(b_res):
@@ -86,6 +102,7 @@ class HybridRetriever(RetrieverInterface):
         page_map = {p["page"]: p for p in self.bm25.pages}
         k_final = k or self.k_final
         ranked = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)[:k_final]
+        emit(run_id, "retrieval.hybrid.rrf", rrf_k=60, candidates=len(b_res)+len(v_res), winners=[page for page, _ in ranked], rationale="manual")
 
         # Rerank by cosine similarity and remove duplicates/low scores
         scored: List[tuple[float, Dict]] = []
@@ -112,5 +129,6 @@ class HybridRetriever(RetrieverInterface):
             if len(results) >= self.max_chunks:
                 break
 
+        _emit_results(run_id, "retrieval.context.selected", results)
         log.info("chunks_selected=%d", len(results))
         return results
