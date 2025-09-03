@@ -6,6 +6,7 @@ from pathlib import Path
 import json
 
 import gradio as gr
+from modules.logic.trace import trace_run, emit
 
 from modules.logic import debug_mode
 from modules.logic.llm_client import answer_question
@@ -32,8 +33,8 @@ def _get_index() -> RetrieverInterface:
     return _INDEX
 
 
-def handle_question(question: str) -> tuple[str, str, str, str]:
-    out, debug_bar, ctx = answer_question(_get_index(), question)
+def _handle_question_impl(question: str, run_id: str | None = None) -> tuple[str, str, str, str]:
+    out, debug_bar, ctx = answer_question(_get_index(), question, run_id=run_id)
     chunks = ctx.split("\n\n") if ctx else []
     quality = "⚑" if len(chunks) <= 1 else "✓"
     tldr = f"{quality} {out}"
@@ -41,6 +42,20 @@ def handle_question(question: str) -> tuple[str, str, str, str]:
     if debug_mode.is_debug():
         logs = f"PROMPT:\n{question}\n\nRETRIEVAL:\n{ctx}\n\nODPOWIEDŹ:\n{out}"
     return tldr, debug_bar, ctx, logs
+
+
+
+def handle_question(question: str, *args, **kw):
+    meta = {"app_version": "0.1.0", "model": getattr(kw, "model", None), "settings_hash": "auto", "debug": True}
+    with trace_run(meta) as run_id:
+        emit(run_id, "ui.input", question_raw=question, user_lang="pl")
+        result = _handle_question_impl(question, run_id=run_id, *args, **kw)
+        if isinstance(result, tuple) and len(result) >= 1:
+            answer = result[0]
+        else:
+            answer = result
+        emit(run_id, "ui.output", answer_len=len(answer or ""))
+        return result
 
 
 def toggle_debug(enabled: bool) -> gr.components.Textbox:

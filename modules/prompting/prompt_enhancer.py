@@ -17,3 +17,30 @@ def enhance_prompt(question: str, intent: Dict, context: str) -> str:
         f"{answer_format}\n\n"
         "Instrukcje: Odpowiadaj tylko na podstawie powyższych fragmentów. Jeśli brak odpowiedzi – napisz: 'Nie ma tego w podręczniku.'"
     )
+from modules.prompting.prompt_templates import SYSTEM_PROMPT_PL
+from modules.logic.trace import emit, save_artifact, prompt_hash
+import json
+
+def build_pl_prompt(question: str, contexts, run_id=None):
+    joined = "\n\n".join(f"[Cytat #{i+1}]\n{c}" for i, c in enumerate(contexts))
+    prompt = f"""{SYSTEM_PROMPT_PL}
+
+[Pytanie]
+{question}
+
+[Kontekst]
+{joined}
+
+[Instrukcja]
+Odpowiedz po polsku, krótko i precyzyjnie. Użyj tylko informacji z [Kontekst].
+"""
+    if run_id:
+        save_artifact(run_id, "prompt.txt", prompt)
+        save_artifact(run_id, "context.json", json.dumps(contexts, ensure_ascii=False, indent=2))
+        emit(run_id, "prompt.build", template_id="pl_only_from_context",
+             prompt_hash=prompt_hash(prompt), tokens_est=len(prompt.split()), context_ids=list(range(1, len(contexts)+1)))
+    return prompt
+
+
+def polish_rewrite(q: str):
+  return q.strip()

@@ -3,5 +3,6 @@ rank_bm25
 requests
 unidecode
 rapidfuzz
-sentence-transformers
+sentence-transformers>=2.7.0
 faiss-cpu
+pymupdf

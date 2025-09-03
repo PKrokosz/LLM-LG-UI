@@ -1,4 +1,15 @@
-confidence_threshold: 0.3
+telemetry:
+  enabled: true
+  redact_fields: ["question_raw"]
+retriever:
+  type: hybrid
+  rrf:
+    k: 60
+top_k: 4
+generation:
+  temperature: 0.2
+  max_new_tokens: 300
+confidence_threshold: 0.62
 retrieval:
   top_k_bm25: 8
   top_k_vec: 8

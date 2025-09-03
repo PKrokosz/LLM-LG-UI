@@ -2,6 +2,19 @@
 from typing import Dict, List, Tuple
 
 import requests
+from modules.logic.trace import emit, save_artifact
+
+
+def _trace_llm_request(cfg):
+    emit(cfg.get("run_id"), "llm.request",
+         model=cfg.get("MODEL"), temperature=cfg.get("TEMP"),
+         max_tokens=cfg.get("MAX_NEW_TOKENS"), stop=cfg.get("STOP"))
+
+
+def _trace_llm_response(run_id, text, finish_reason="stop", latency_ms=None):
+    emit(run_id, "llm.response", finish_reason=finish_reason, latency_ms=latency_ms)
+    save_artifact(run_id, "response.txt", text or "")
+
 
 from .config import LLAMA_BASE_URL, LLAMA_MODEL, MAX_TOKENS, STOP, TEMPERATURE
 from .intent_embedder import parse_intent
@@ -47,8 +60,9 @@ def _paraphrase_if_echo(answer: str, question: str, seed: int) -> str:
     return answer
 
 
-def call_llama(messages: List[Dict], seed: int = 42) -> str:
+def call_llama(messages: List[Dict], seed: int = 42, run_id: str | None = None) -> str:
     """Send chat completion request to Llama server."""
+    import time as _t
     url = f"{LLAMA_BASE_URL}/v1/chat/completions"
     payload = {
         "model": LLAMA_MODEL,
@@ -58,10 +72,20 @@ def call_llama(messages: List[Dict], seed: int = 42) -> str:
         "stop": STOP,
         "seed": seed,
     }
+    _trace_llm_request({"run_id": run_id, "MODEL": LLAMA_MODEL, "TEMP": TEMPERATURE,
+                        "MAX_NEW_TOKENS": MAX_TOKENS, "STOP": STOP})
+    __t = _t.time()
     r = requests.post(url, json=payload, timeout=120)
+    __lat = int((_t.time() - __t) * 1000)
     r.raise_for_status()
     data = r.json()
-    return data["choices"][0]["message"]["content"].strip()
+    text = data["choices"][0]["message"]["content"].strip()
+    try:
+        finish_reason = data.get("choices", [{}])[0].get("finish_reason", "stop")
+        _trace_llm_response(run_id, text, finish_reason, __lat)
+    except Exception:
+        _trace_llm_response(run_id, text, "stop", __lat)
+    return text
 
 
 def format_context(chunks: List[Dict]) -> str:
@@ -74,7 +98,7 @@ def format_context(chunks: List[Dict]) -> str:
 
 
 
-def answer_question(idx: RetrieverInterface, question: str, top_k: int = 3, seed: int = 42) -> Tuple[str, str, str]:
+def answer_question(idx: RetrieverInterface, question: str, top_k: int = 3, seed: int = 42, run_id: str | None = None) -> Tuple[str, str, str]:
     """Handle question answering using retrieval and LLM."""
     logger = MetricsLogger()
     logger.start()
@@ -86,7 +110,7 @@ def answer_question(idx: RetrieverInterface, question: str, top_k: int = 3, seed
         return "", "Doprecyzuj pytanie (np. 'Jak się walczy?').", ""
 
     intent = parse_intent(q_clean)
-    hits = idx.search(q_clean, k=top_k)
+    hits = idx.search(q_clean, k=top_k, run_id=run_id) if run_id else idx.search(q_clean, k=top_k)
     quotes = _extract_quotes(hits)
     if needs_fallback(hits):
         logger.end()
@@ -110,7 +134,10 @@ def answer_question(idx: RetrieverInterface, question: str, top_k: int = 3, seed
     ]
 
     try:
-        llm_out = call_llama(messages, seed=seed)
+        try:
+            llm_out = call_llama(messages, seed=seed, run_id=run_id)
+        except TypeError:
+            llm_out = call_llama(messages, seed=seed)
         logger.first_response()
     except Exception as e:  # pragma: no cover - network failure
         llm_out = f"Błąd zapytania do LLM: {e}"

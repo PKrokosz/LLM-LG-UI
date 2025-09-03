@@ -26,30 +26,54 @@ class _DummyModel:
             out[i] /= n
         return out
 
+# --- PL: switch to multilingual E5 embeddings + normalized outputs ---
+MODEL_NAME = "intfloat/multilingual-e5-base"
+if SentenceTransformer is not None:
+    try:
+        _emb = SentenceTransformer(MODEL_NAME)
+    except Exception:  # pragma: no cover - offline fallback
+        _emb = _DummyModel()
+else:  # pragma: no cover - offline fallback
+    _emb = _DummyModel()
+
+import numpy as _np
+
+def _norm(x):
+    return x / (_np.linalg.norm(x, axis=-1, keepdims=True) + 1e-12)
+
+def embed_passages(texts):
+    if isinstance(_emb, _DummyModel):
+        embs = _emb.encode(texts, convert_to_numpy=True, show_progress_bar=False)
+    else:
+        embs = _emb.encode([f"passage: {t}" for t in texts], normalize_embeddings=True)
+    return _norm(embs)
+
+def embed_query(q):
+    if isinstance(_emb, _DummyModel):
+        embs = _emb.encode([q], convert_to_numpy=True, show_progress_bar=False)
+    else:
+        embs = _emb.encode([f"query: {q}"], normalize_embeddings=True)
+    return _norm(embs)
+
 
 class VectorIndex(RetrieverInterface):
     """FAISS index over sentence-transformer embeddings."""
 
-    def __init__(self, pages: List[Dict], model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+    def __init__(self, pages: List[Dict]):
         self.pages = pages
-        if SentenceTransformer is not None:
-            try:
-                self.model = SentenceTransformer(model_name)
-            except Exception:  # pragma: no cover - offline fallback
-                self.model = _DummyModel()
-        else:  # pragma: no cover - offline fallback
-            self.model = _DummyModel()
         texts = [p["text"] for p in pages]
-        embs = self.model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
-        faiss.normalize_L2(embs)
+        embs = embed_passages(texts)
         self.dim = embs.shape[1]
         self.index = faiss.IndexFlatIP(self.dim)
         self.index.add(embs)
 
+    @property
+    def model(self):  # pragma: no cover - simple accessor
+        return _emb
+
     def search(self, query: str, k: int = 4) -> List[Dict]:
         """Return top-k pages most similar to query."""
-        q_emb = self.model.encode([query], convert_to_numpy=True, show_progress_bar=False)
-        faiss.normalize_L2(q_emb)
+        q_emb = embed_query(query)
         k = min(k, len(self.pages))
         if k == 0:
             return []
